@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <title>Test base64.js</title>
+        <script>
+/* This test can be run on a browser that natively support atob and btoa.
+ * It saves the native functions in other variables and nullifies the original
+ * properties, so base64.js' sugar can kick in. */
+if (window.atob) {
+    var _atob = atob, _btoa = btoa;
+    atob = btoa = null;
+} else console.warn("Test not runnable: 'atob' and 'btoa' not natively supported");
+        </script>
+        <script src="../base64.js"></script>
+        <script>
+// The test consists simply in generating random strings, encoding them to base64
+// and decoding them back to the original strings.
+// Additional alterations can be made to the encoded strings, like stripping the final
+// padding of '=' simbols, and/or adding random whitespace sequences inside of the
+// encoded string.
+(function() {
+    if (typeof _atob === "undefined") return;
+
+    var time = new Date().getTime(),
+        i = 0, j, len, array, string,
+        nativeAtobResult, polyfilledAtobResult,
+        nativeBtoaResult, polyfilledBtoaResult,
+
+        // returns a random number between 0 and max (exclusive)
+        rand = function(max) {
+            return Math.floor(Math.random() * max);
+        },
+        stripPadding = function(string) {return string.replace(/=*$/, "");},
+        insertWhitespaces;
+
+    try {
+        _atob(" ");
+        insertWhitespaces = function(string) {
+            var i = 0, j, len, whites;
+            for (; i <= string.length; i += len + rand(10) + 1) {
+                len = rand(5) + 1;
+                whites = "";
+                for (j = 0; j < len; j++)
+                    whites += ["\t", "\n", "\f", "\r", " "][rand(5)];
+                string = string.substring(0, i) + whites + string.substring(i);
+            }
+            return string;
+        };
+    } catch(e) {
+        // This browser's implementation of atob doesn't support whitespaces
+        // in the encoded string (notably, IE)
+        insertWhitespaces = function(string) {return string;};
+    }
+
+    for (; i < 1e4; i++) {
+        len = rand(100) + 1;
+        string = "";
+        for (j = 0; j < len; j++)
+            string += String.fromCharCode(rand(256));
+
+        nativeBtoaResult = _btoa(string);
+        try {
+            polyfilledBtoaResult = btoa(string);
+        } catch(e) {
+            console.log("Error converting to base64: " + e.message);
+            continue;
+        }
+        console.assert(nativeBtoaResult === polyfilledBtoaResult,
+                "btoa: different results: " + polyfilledBtoaResult);
+
+        // Randomly alters the encoded string
+        if (!rand(2)) nativeBtoaResult = stripPadding(nativeBtoaResult);
+        if (!rand(3)) nativeBtoaResult = insertWhitespaces(nativeBtoaResult);
+
+        nativeAtobResult = _atob(nativeBtoaResult);
+        try {
+            polyfilledAtobResult = atob(nativeBtoaResult);
+        } catch(e) {
+            console.log("Error converting from base64: " + e.message);
+            continue;
+        }
+        console.assert(nativeAtobResult === polyfilledAtobResult,
+                "atob: different results: " + polyfilledAtobResult);
+
+        // This shouldn't fail, as the native functions would fail too.
+        console.assert(polyfilledAtobResult === string,
+                "btoa-atob: didn't yield the original string: " + string);
+    }
+    console.log("Test completed in " + (new Date().getTime() - time) + " milliseconds.")
+})();
+        </script>
+    </head>
+    <body>
+    </body>
+</html>
